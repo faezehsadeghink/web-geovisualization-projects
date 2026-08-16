@@ -1,0 +1,1261 @@
+<!doctype html>
+<html lang="fa" dir="ltr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>پروژه Web GIS - نقشه پایه و ابزارهای ترسیم</title>
+
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/ol@v8.2.0/ol.css"
+      type="text/css"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/ol@v8.2.0/dist/ol.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
+
+    <style>
+      /* Cursor Coordinate Tooltip */
+      .cursor-coordinate-tooltip {
+        position: absolute;
+        background: var(--panel-bg);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border: 1px solid var(--panel-border);
+        padding: 6px 10px;
+        border-radius: 8px;
+        font-size: 11px;
+        color: var(--text-dark);
+        box-shadow: var(--shadow-soft);
+        pointer-events: none; /* Lets clicks pass right through to the map */
+        z-index: 2000;
+        display: none; /* Hidden by default until the mouse enters the map */
+        direction: ltr;
+        font-family: monospace;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+
+      /* Draw Button Styles */
+      .draw-tools-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+        margin-bottom: 5px;
+      }
+      .draw-btn {
+        background: white;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        padding: 8px 0;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        color: var(--text-muted);
+      }
+      .draw-btn:hover {
+        border-color: var(--primary-color);
+        color: var(--primary-color);
+      }
+      .draw-btn.active {
+        background-color: var(--primary-color);
+        color: white;
+        border-color: var(--primary-color);
+        box-shadow: 0 2px 8px rgba(15, 118, 110, 0.3);
+      }
+      /* Color tokens and base visual system */
+      :root {
+        --primary-color: #0f766e;
+        --primary-hover: #0d9488;
+        --accent-color: #0ea5e9;
+        --danger-color: #ef4444;
+        --danger-hover: #dc2626;
+        --text-dark: #0f172a;
+        --text-muted: #475569;
+        --panel-bg: rgba(255, 255, 255, 0.88);
+        --panel-border: rgba(255, 255, 255, 0.45);
+        --border-radius: 14px;
+        --shadow: 0 12px 30px rgba(15, 23, 42, 0.16);
+        --shadow-soft: 0 6px 18px rgba(15, 23, 42, 0.09);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body,
+      html {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        font-family: "Vazirmatn", "Segoe UI", Tahoma, Arial, sans-serif;
+        background: radial-gradient(circle at top right, #e0f2fe, #f8fafc 40%);
+        color: var(--text-dark);
+        direction: ltr;
+      }
+
+      /* Map viewport */
+      #map {
+        width: 100%;
+        height: 100vh;
+        direction: ltr;
+      }
+
+      /* Shared floating panel styles */
+      .floating-panel {
+        position: absolute;
+        background: var(--panel-bg);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid var(--panel-border);
+        padding: 20px;
+        border-radius: var(--border-radius);
+        z-index: 1000;
+        box-shadow: var(--shadow);
+        direction: rtl;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        animation: fade-in-up 0.35s ease both;
+      }
+
+      .floating-panel h3 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-dark);
+        border-bottom: 2px solid #e2e8f0;
+        padding-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .panel-caption {
+        margin: 0;
+        font-size: 12px;
+        line-height: 1.5;
+        color: var(--text-muted);
+      }
+
+      /* Tool panel (left side) */
+      #toolbar {
+        top: 20px;
+        left: 20px;
+        width: 290px;
+      }
+
+      .tool-group label {
+        display: block;
+        font-size: 13px;
+        font-weight: 500;
+        margin-bottom: 8px;
+        color: var(--text-muted);
+      }
+
+      .tool-group select {
+        width: 100%;
+        padding: 10px;
+        font-family: inherit;
+        font-size: 13px;
+        border-radius: 8px;
+        border: 1px solid #cbd5e1;
+        background-color: white;
+        color: var(--text-dark);
+        outline: none;
+        transition: all 0.2s ease;
+        cursor: pointer;
+        box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
+      }
+
+      .tool-group select:focus {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+      }
+
+      #measure-result {
+        font-size: 13px;
+        color: #0f172a;
+        background: #f8fafc;
+        padding: 10px;
+        border-radius: 8px;
+        border: 1px dashed #cbd5e1;
+        min-height: 24px;
+        text-align: center;
+        font-weight: 500;
+        line-height: 1.45;
+      }
+
+      /* Buttons */
+      .tool-btn {
+        width: 100%;
+        padding: 10px;
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        border-radius: 8px;
+        border: none;
+        background-color: var(--primary-color);
+        color: white;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        box-shadow: var(--shadow-soft);
+      }
+
+      .tool-btn:hover {
+        background-color: var(--primary-hover);
+        transform: translateY(-1px);
+      }
+
+      .tool-btn:active {
+        transform: translateY(0);
+      }
+
+      .btn-danger {
+        background-color: var(--danger-color);
+      }
+
+      .btn-danger:hover {
+        background-color: var(--danger-hover);
+      }
+
+      /* Layer panel (right side) */
+      .layer-switcher {
+        top: 20px;
+        right: 20px;
+        width: 280px;
+        max-height: calc(100vh - 40px);
+        overflow-y: auto;
+      }
+
+      .layer-switcher::-webkit-scrollbar {
+        width: 6px;
+      }
+      .layer-switcher::-webkit-scrollbar-thumb {
+        background-color: #cbd5e1;
+        border-radius: 4px;
+      }
+
+      .layer-item {
+        display: flex;
+        align-items: center;
+        padding: 8px 0;
+        border-bottom: 1px solid #f1f5f9;
+        transition: background 0.2s;
+      }
+
+      .layer-item:last-child {
+        border-bottom: none;
+      }
+
+      .layer-item:hover {
+        background-color: rgba(226, 232, 240, 0.55);
+        border-radius: 6px;
+      }
+
+      /* Checkbox controls */
+      .layer-item input[type="checkbox"] {
+        appearance: none;
+        -webkit-appearance: none;
+        width: 18px;
+        height: 18px;
+        border: 2px solid #94a3b8;
+        border-radius: 4px;
+        margin-left: 10px;
+        cursor: pointer;
+        position: relative;
+        transition: all 0.2s;
+        flex-shrink: 0;
+      }
+
+      .layer-item input[type="checkbox"]:checked {
+        background-color: var(--primary-color);
+        border-color: var(--primary-color);
+      }
+
+      .layer-item input[type="checkbox"]:checked::after {
+        content: "✔";
+        color: white;
+        font-size: 12px;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+      }
+
+      /* Radio controls */
+      .layer-item input[type="radio"] {
+        appearance: none;
+        -webkit-appearance: none;
+        width: 18px;
+        height: 18px;
+        border: 2px solid #94a3b8;
+        border-radius: 50%;
+        margin-left: 10px;
+        cursor: pointer;
+        position: relative;
+        transition: all 0.2s;
+        flex-shrink: 0;
+      }
+
+      .layer-item input[type="radio"]:checked {
+        border-color: var(--primary-color);
+      }
+
+      .layer-item input[type="radio"]:checked::after {
+        content: "";
+        width: 10px;
+        height: 10px;
+        background-color: var(--primary-color);
+        border-radius: 50%;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+      }
+
+      .layer-item label {
+        cursor: pointer;
+        font-size: 13px;
+        user-select: none;
+        flex-grow: 1;
+      }
+
+      .toggle-all-box {
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 2px 10px;
+        margin-bottom: 5px;
+      }
+
+      /* Identify popup styles */
+      .ol-popup {
+        position: absolute;
+        background-color: white;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+        padding: 20px;
+        border-radius: 12px;
+        border: none;
+        min-width: 300px;
+        font-family: inherit;
+        direction: rtl;
+      }
+
+      .ol-overlaycontainer,
+      .ol-overlaycontainer-stopevent {
+        direction: ltr;
+      }
+
+      .ol-popup-closer {
+        text-decoration: none;
+        position: absolute;
+        top: 10px;
+        right: 15px;
+        color: #94a3b8;
+        font-size: 18px;
+        transition: color 0.2s;
+      }
+
+      .ol-popup-closer:hover {
+        color: var(--danger-color);
+      }
+
+      .ol-popup-closer:after {
+        content: "✖";
+      }
+
+      #popup-content table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+        font-size: 12px;
+      }
+      #popup-content th,
+      #popup-content td {
+        border: 1px solid #e2e8f0;
+        padding: 6px;
+        text-align: right;
+      }
+      #popup-content th {
+        background-color: #f8fafc;
+        color: var(--text-muted);
+      }
+
+      @keyframes fade-in-up {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @media (max-width: 1024px) {
+        .floating-panel {
+          max-width: calc(100vw - 24px);
+          padding: 16px;
+          gap: 10px;
+        }
+
+        #toolbar,
+        .layer-switcher {
+          width: 320px;
+          left: 12px;
+          right: auto;
+        }
+
+        .layer-switcher {
+          top: auto;
+          bottom: 12px;
+          max-height: 42vh;
+        }
+      }
+
+      @media (max-width: 640px) {
+        body,
+        html {
+          font-size: 14px;
+        }
+
+        #toolbar,
+        .layer-switcher {
+          width: calc(100vw - 24px);
+        }
+
+        #toolbar {
+          top: 12px;
+        }
+
+        .layer-switcher {
+          bottom: 12px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="toolbar" class="floating-panel">
+      <h3>
+        <svg
+          width="20"
+          height="20"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+          ></path>
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+          ></path>
+        </svg>
+        ابزارهای ابعادی و ترسیم
+      </h3>
+      <p class="panel-caption">
+        از ابزارهای زیر برای ترسیم، اندازه‌گیری و خروجی گرفتن از عوارض استفاده
+        کنید.
+      </p>
+      <div class="tool-group">
+        <label>انتخاب ابزار ترسیم:</label>
+        <div class="draw-tools-grid">
+          <button
+            class="draw-btn active"
+            data-type="None"
+            title="جابجایی (Pan)"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M18 11V6a2 2 0 0 0-4 0v4" />
+              <path d="M14 10V5a2 2 0 0 0-4 0v5" />
+              <path d="M10 10.5V4a2 2 0 0 0-4 0v7.5" />
+              <path
+                d="M6 13v-1a2 2 0 0 0-4 0v5.5a8.5 8.5 0 0 0 8.5 8.5h2a8.5 8.5 0 0 0 8.5-8.5V14a2 2 0 0 0-2-2h-1.5"
+              />
+            </svg>
+          </button>
+          <button class="draw-btn" data-type="Point" title="ترسیم نقطه">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+              <circle cx="12" cy="10" r="3"></circle>
+            </svg>
+          </button>
+          <button class="draw-btn" data-type="LineString" title="ترسیم خط">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M4 19l16-14"></path>
+              <circle cx="4" cy="19" r="2"></circle>
+              <circle cx="20" cy="5" r="2"></circle>
+            </svg>
+          </button>
+          <button class="draw-btn" data-type="Polygon" title="ترسیم چندضلعی">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect>
+              <circle cx="4" cy="4" r="2"></circle>
+              <circle cx="20" cy="4" r="2"></circle>
+              <circle cx="20" cy="20" r="2"></circle>
+              <circle cx="4" cy="20" r="2"></circle>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="tool-group">
+        <div id="measure-result">نتیجه اندازه‌گیری...</div>
+      </div>
+      <button id="export-geojson" class="tool-btn">
+        <svg
+          width="18"
+          height="18"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+          ></path>
+        </svg>
+        دانلود خروجی GeoJSON
+      </button>
+      <button id="clear-drawings" class="tool-btn btn-danger">
+        <svg
+          width="18"
+          height="18"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+          ></path>
+        </svg>
+        پاک کردن تمام ترسیم‌ها
+      </button>
+    </div>
+
+    <div id="map" class="map"></div>
+
+    <div id="cursor-coordinate" class="cursor-coordinate-tooltip"></div>
+
+    <div id="popup" class="ol-popup">
+      <a href="#" id="popup-closer" class="ol-popup-closer"></a>
+      <div id="popup-content"></div>
+    </div>
+
+    <div id="layer-switcher" class="floating-panel layer-switcher">
+      <h3>
+        <svg
+          width="20"
+          height="20"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M12 2l-8 4 8 4 8-4-8-4zM2 12l10 5 10-5M2 17l10 5 10-5"
+          ></path>
+        </svg>
+        نقشه پایه
+      </h3>
+      <div class="base-map-switcher">
+        <div class="layer-item">
+          <input
+            type="radio"
+            id="basemap-osm"
+            name="basemap"
+            value="osm"
+            checked
+          />
+          <label for="basemap-osm">OpenStreetMap</label>
+        </div>
+        <div class="layer-item">
+          <input
+            type="radio"
+            id="basemap-satellite"
+            name="basemap"
+            value="satellite"
+          />
+          <label for="basemap-satellite">Satellite (Esri)</label>
+        </div>
+      </div>
+
+      <h3 style="margin-top: 10px">
+        <svg
+          width="20"
+          height="20"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M4 6h16M4 10h16M4 14h16M4 18h16"
+          ></path>
+        </svg>
+        لیست لایه‌ها
+      </h3>
+      <div class="layer-item toggle-all-box">
+        <input type="checkbox" id="toggle-all-layers" checked />
+        <label
+          for="toggle-all-layers"
+          style="font-weight: bold; color: var(--primary-color)"
+          >فعال/غیرفعال کردن همه</label
+        >
+      </div>
+      <div id="layer-list"></div>
+      <h3 style="margin-top: 10px">
+        <svg
+          width="20"
+          height="20"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+          ></path>
+        </svg>
+        تصاویر هوایی
+      </h3>
+      <div id="ortho-layer-list"></div>
+    </div>
+
+    <script>
+      // 1) Base map layers
+      const osmLayer = new ol.layer.Tile({
+        source: new ol.source.OSM(),
+        title: "OSM",
+        isBaseLayer: true,
+        visible: true,
+      });
+
+      const satelliteLayer = new ol.layer.Tile({
+        source: new ol.source.XYZ({
+          url: "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+          attributions:
+            "Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community",
+        }),
+        title: "Satellite",
+        isBaseLayer: true,
+        visible: false,
+      });
+
+      // Switch visibility between base maps
+      document.querySelectorAll('input[name="basemap"]').forEach((radio) => {
+        radio.addEventListener("change", function () {
+          if (this.value === "osm") {
+            osmLayer.setVisible(true);
+            satelliteLayer.setVisible(false);
+          } else {
+            osmLayer.setVisible(false);
+            satelliteLayer.setVisible(true);
+          }
+        });
+      });
+
+      // 2) GeoServer WMS layers
+      const geoServerUrl = "http://localhost:8081/geoserver/wms";
+
+      // Add your new Orthophoto layer here
+      const OrthoPhotoLayer = new ol.layer.Image({
+        source: new ol.source.ImageWMS({
+          url: geoServerUrl,
+          params: {
+            // Replace with your exact GeoServer Workspace and Layer Name
+            LAYERS:
+              "Project_statistical_analysis_and_data_visualization:orthophoto_final",
+          },
+          serverType: "geoserver",
+        }),
+        title: "ارتوفتو", // This name will automatically appear in your layer toggle list
+        visible: false, // Change to true if you want it turned on when the map loads
+      });
+
+      const Buildings_KhorasanShomali = new ol.layer.Image({
+        source: new ol.source.ImageWMS({
+          url: geoServerUrl,
+          params: {
+            LAYERS:
+              "Project_statistical_analysis_and_data_visualization:Buildings_KhorasanShomali",
+          },
+          serverType: "geoserver",
+        }),
+        title: "ساختمان‌ها",
+      });
+
+      const Natural_KhorasanShomali = new ol.layer.Image({
+        source: new ol.source.ImageWMS({
+          url: geoServerUrl,
+          params: {
+            LAYERS:
+              "Project_statistical_analysis_and_data_visualization:Natural_KhorasanShomali",
+          },
+          serverType: "geoserver",
+        }),
+        title: "عوارض طبیعی",
+      });
+
+      const Places_KhorasanShomali = new ol.layer.Image({
+        source: new ol.source.ImageWMS({
+          url: geoServerUrl,
+          params: {
+            LAYERS:
+              "Project_statistical_analysis_and_data_visualization:Places_KhorasanShomali",
+          },
+          serverType: "geoserver",
+        }),
+        title: "مکان‌ها",
+      });
+
+      const Pofw_KhorasanShomali = new ol.layer.Image({
+        source: new ol.source.ImageWMS({
+          url: geoServerUrl,
+          params: {
+            LAYERS:
+              "Project_statistical_analysis_and_data_visualization:Pofw_KhorasanShomali",
+          },
+          serverType: "geoserver",
+        }),
+        title: "اماکن مذهبی",
+      });
+
+      const Pois_KhorasanShomali = new ol.layer.Image({
+        source: new ol.source.ImageWMS({
+          url: geoServerUrl,
+          params: {
+            LAYERS:
+              "Project_statistical_analysis_and_data_visualization:Pois_KhorasanShomali",
+          },
+          serverType: "geoserver",
+        }),
+        title: "نقاط مورد علاقه (POI)",
+      });
+
+      const ProtectedArea__KhorasanShomali = new ol.layer.Image({
+        source: new ol.source.ImageWMS({
+          url: geoServerUrl,
+          params: {
+            LAYERS:
+              "Project_statistical_analysis_and_data_visualization:ProtectedArea__KhorasanShomali",
+          },
+          serverType: "geoserver",
+        }),
+        title: "مناطق حفاظت شده",
+      });
+
+      const RailWays_KhorasanShomali = new ol.layer.Image({
+        source: new ol.source.ImageWMS({
+          url: geoServerUrl,
+          params: {
+            LAYERS:
+              "Project_statistical_analysis_and_data_visualization:RailWays_KhorasanShomali",
+          },
+          serverType: "geoserver",
+        }),
+        title: "راه‌آهن",
+      });
+
+      const Roads_KhorasanShomali = new ol.layer.Image({
+        source: new ol.source.ImageWMS({
+          url: geoServerUrl,
+          params: {
+            LAYERS:
+              "Project_statistical_analysis_and_data_visualization:Roads_KhorasanShomali",
+          },
+          serverType: "geoserver",
+        }),
+        title: "جاده‌ها و راه‌ها",
+      });
+
+      const Traffic_KhorasanShomali = new ol.layer.Image({
+        source: new ol.source.ImageWMS({
+          url: geoServerUrl,
+          params: {
+            LAYERS:
+              "Project_statistical_analysis_and_data_visualization:Traffic_KhorasanShomali",
+          },
+          serverType: "geoserver",
+        }),
+        title: "ترافیک",
+      });
+
+      const Transport_KhorasanShomali = new ol.layer.Image({
+        source: new ol.source.ImageWMS({
+          url: geoServerUrl,
+          params: {
+            LAYERS:
+              "Project_statistical_analysis_and_data_visualization:Transport_KhorasanShomali",
+          },
+          serverType: "geoserver",
+        }),
+        title: "حمل و نقل",
+      });
+
+      const WaterWays_KhorasanShomali = new ol.layer.Image({
+        source: new ol.source.ImageWMS({
+          url: geoServerUrl,
+          params: {
+            LAYERS:
+              "Project_statistical_analysis_and_data_visualization:WaterWays_KhorasanShomali",
+          },
+          serverType: "geoserver",
+        }),
+        title: "آبراه‌ها",
+      });
+
+      const Water_KhorasanShomali = new ol.layer.Image({
+        source: new ol.source.ImageWMS({
+          url: geoServerUrl,
+          params: {
+            LAYERS:
+              "Project_statistical_analysis_and_data_visualization:Water_KhorasanShomali",
+          },
+          serverType: "geoserver",
+        }),
+        title: "پهنه‌های آبی",
+      });
+
+      // User drawing vector layer
+      const drawingSource = new ol.source.Vector();
+      const drawingLayer = new ol.layer.Vector({
+        source: drawingSource,
+        style: new ol.style.Style({
+          fill: new ol.style.Fill({
+            color: "rgba(59, 130, 246, 0.3)",
+          }),
+          stroke: new ol.style.Stroke({
+            color: "#3b82f6",
+            width: 3,
+          }),
+          image: new ol.style.Circle({
+            radius: 6,
+            fill: new ol.style.Fill({ color: "#3b82f6" }),
+          }),
+        }),
+        title: "ترسیمات کاربر",
+      });
+
+      // 3) Build map instance
+      const map = new ol.Map({
+        target: "map",
+        layers: [
+          osmLayer,
+          satelliteLayer,
+          Natural_KhorasanShomali,
+          ProtectedArea__KhorasanShomali,
+          Water_KhorasanShomali,
+          WaterWays_KhorasanShomali,
+          Buildings_KhorasanShomali,
+          Places_KhorasanShomali,
+          Pofw_KhorasanShomali,
+          Pois_KhorasanShomali,
+          RailWays_KhorasanShomali,
+          Roads_KhorasanShomali,
+          Traffic_KhorasanShomali,
+          Transport_KhorasanShomali,
+          OrthoPhotoLayer, // <--- ADD IT HERE
+          drawingLayer,
+        ],
+        view: new ol.View({
+          center: ol.proj.fromLonLat([57.3291, 37.4747]),
+          zoom: 9,
+        }),
+      });
+
+      // Build layer list with visibility toggles
+      const layerListContainer = document.getElementById("layer-list");
+      const orthoListContainer = document.getElementById("ortho-layer-list"); // <--- New container
+      const mapLayers = map.getLayers().getArray();
+
+      // Generate layer checkboxes
+      for (let i = mapLayers.length - 1; i >= 0; i--) {
+        const layer = mapLayers[i];
+        const title = layer.get("title");
+        const isBaseLayer = layer.get("isBaseLayer");
+
+        // Ignore base layers and the user drawing layer
+        if (title && !isBaseLayer && layer !== drawingLayer) {
+          const itemDiv = document.createElement("div");
+          itemDiv.className = "layer-item";
+
+          const checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.id = "layer-" + i;
+          checkbox.checked = layer.getVisible();
+
+          const label = document.createElement("label");
+          label.htmlFor = "layer-" + i;
+          label.textContent = title;
+
+          // --- ISOLATE THE ORTHOPHOTO ---
+          if (title === "ارتوفتو") {
+            checkbox.className = "ortho-toggle-cb"; // Unique class: Toggle All will ignore this!
+
+            checkbox.addEventListener("change", function () {
+              layer.setVisible(this.checked);
+
+              // Zoom logic for Orthophoto
+              if (this.checked) {
+                const minX = 50.412576466193066; // REPLACE WITH YOUR MIN X
+                const minY = 36.00453707124222; // REPLACE WITH YOUR MIN Y
+                const maxX = 50.43571301414294; // REPLACE WITH YOUR MAX X
+                const maxY = 36.02238497557233; // REPLACE WITH YOUR MAX Y
+                const extent4326 = [minX, minY, maxX, maxY];
+                const extent3857 = ol.proj.transformExtent(
+                  extent4326,
+                  "EPSG:4326",
+                  "EPSG:3857",
+                );
+                map.getView().fit(extent3857, {
+                  padding: [50, 50, 50, 50],
+                  duration: 1000,
+                });
+              }
+            });
+
+            itemDiv.appendChild(checkbox);
+            itemDiv.appendChild(label);
+            orthoListContainer.appendChild(itemDiv); // Add to the new HTML section
+          } else {
+            // --- STANDARD LAYERS ---
+            checkbox.className = "layer-toggle-cb"; // Standard class: Toggle All controls this
+
+            checkbox.addEventListener("change", function () {
+              layer.setVisible(this.checked);
+            });
+
+            itemDiv.appendChild(checkbox);
+            itemDiv.appendChild(label);
+            layerListContainer.appendChild(itemDiv); // Add to the normal list
+          }
+        }
+      }
+
+      // Toggle all thematic layers
+      const toggleAllCheckbox = document.getElementById("toggle-all-layers");
+      toggleAllCheckbox.addEventListener("change", function () {
+        const isChecked = this.checked;
+        const checkboxes = document.querySelectorAll(".layer-toggle-cb");
+        checkboxes.forEach((cb) => {
+          if (cb.checked !== isChecked) {
+            cb.checked = isChecked;
+            cb.dispatchEvent(new Event("change"));
+          }
+        });
+      });
+
+      // Keep "Toggle All" synced with individual checkbox changes
+      document.querySelectorAll(".layer-toggle-cb").forEach((cb) => {
+        cb.addEventListener("change", function () {
+          const allCheckboxes = document.querySelectorAll(".layer-toggle-cb");
+          const allChecked = Array.from(allCheckboxes).every((c) => c.checked);
+          const anyUnchecked = Array.from(allCheckboxes).some(
+            (c) => !c.checked,
+          );
+
+          if (allChecked) {
+            toggleAllCheckbox.checked = true;
+          } else if (anyUnchecked) {
+            toggleAllCheckbox.checked = false;
+          }
+        });
+      });
+
+      // Identify tool based on WMS GetFeatureInfo
+      const popupContainer = document.getElementById("popup");
+      const popupContent = document.getElementById("popup-content");
+      const popupCloser = document.getElementById("popup-closer");
+
+      const overlay = new ol.Overlay({
+        element: popupContainer,
+        autoPan: true,
+        positioning: "bottom-center",
+        offset: [0, -10],
+      });
+
+      map.addOverlay(overlay);
+
+      popupCloser.onclick = function () {
+        overlay.setPosition(undefined);
+        popupCloser.blur();
+        return false;
+      };
+
+      map.on("singleclick", function (evt) {
+        if (currentDrawType !== "None") return;
+
+        const viewResolution = map.getView().getResolution();
+        const visibleLayers = [];
+        let wmsSource = null;
+
+        map.getLayers().forEach(function (layer) {
+          if (
+            layer !== drawingLayer &&
+            !layer.get("isBaseLayer") && // Skip base layers for identify requests
+            layer.getVisible() &&
+            layer.getSource() &&
+            layer.getSource().getParams
+          ) {
+            const params = layer.getSource().getParams();
+            if (params.LAYERS) {
+              visibleLayers.push(params.LAYERS);
+              if (!wmsSource) wmsSource = layer.getSource();
+            }
+          }
+        });
+
+        if (visibleLayers.length > 0 && wmsSource) {
+          const layersStr = visibleLayers.join(",");
+
+          const identifyUrl = wmsSource.getFeatureInfoUrl(
+            evt.coordinate,
+            viewResolution,
+            "EPSG:3857",
+            {
+              INFO_FORMAT: "text/html",
+              QUERY_LAYERS: layersStr,
+              LAYERS: layersStr,
+            },
+          );
+
+          if (identifyUrl) {
+            fetch(identifyUrl)
+              .then((response) => response.text())
+              .then((html) => {
+                if (html && html.includes("<table")) {
+                  popupContent.innerHTML = html;
+                  overlay.setPosition(evt.coordinate);
+                } else {
+                  overlay.setPosition(undefined);
+                }
+              })
+              .catch((error) => console.error("GetFeatureInfo error:", error));
+          }
+        } else {
+          overlay.setPosition(undefined);
+        }
+      });
+
+      // Drawing, measurement, and GeoJSON export tools
+      let drawInteraction;
+      let currentDrawType = "None"; // Tracks the active button
+      const measureResultDiv = document.getElementById("measure-result");
+
+      // 1. Define UTM Zone 40N (North Khorasan)
+      proj4.defs(
+        "EPSG:32640",
+        "+proj=utm +zone=40 +datum=WGS84 +units=m +no_defs +type=crs",
+      );
+      ol.proj.proj4.register(proj4);
+
+      // 2. Updated Interaction Logic
+      function addDrawInteraction() {
+        // We are now checking our new button variable instead of the old dropdown
+        if (currentDrawType !== "None") {
+          const value = currentDrawType;
+
+          drawInteraction = new ol.interaction.Draw({
+            source: drawingSource,
+            type: value,
+          });
+          map.addInteraction(drawInteraction);
+
+          drawInteraction.on("drawend", function (evt) {
+            const feature = evt.feature;
+            const geometry = feature.getGeometry();
+            let output = "";
+            let coordsList = "";
+
+            // Clone geometry and transform to UTM Zone 40N for planar calculations
+            const utmGeometry = geometry
+              .clone()
+              .transform("EPSG:3857", "EPSG:32640");
+
+            if (geometry instanceof ol.geom.LineString) {
+              const length = utmGeometry.getLength(); // Planar UTM length
+              const coords = utmGeometry.getCoordinates();
+
+              const lengthStr =
+                length > 1000
+                  ? (length / 1000).toFixed(2) + " کیلومتر"
+                  : length.toFixed(2) + " متر";
+
+              coordsList = coords
+                .map(
+                  (c, i) =>
+                    `نقطه ${i + 1}: X=${c[0].toFixed(2)} , Y=${c[1].toFixed(2)}`,
+                )
+                .join("<br>");
+              output = `<strong>طول (UTM):</strong> ${lengthStr}<br><div style="font-size:11px; margin-top:5px; text-align:left; direction:ltr; color:#475569;">${coordsList}</div>`;
+
+              feature.set("Measurement_Type", "Length (UTM)");
+              feature.set("Measurement_Value", lengthStr);
+            } else if (geometry instanceof ol.geom.Polygon) {
+              const area = utmGeometry.getArea(); // Planar UTM area
+              const coords = utmGeometry.getCoordinates()[0]; // First ring of the polygon
+
+              const areaStr =
+                area > 1000000
+                  ? (area / 1000000).toFixed(2) + " کیلومتر مربع"
+                  : area.toFixed(2) + " متر مربع";
+
+              coordsList = coords
+                .map(
+                  (c, i) =>
+                    `رأس ${i + 1}: X=${c[0].toFixed(2)} , Y=${c[1].toFixed(2)}`,
+                )
+                .join("<br>");
+              output = `<strong>مساحت (UTM):</strong> ${areaStr}<br><div style="font-size:11px; margin-top:5px; text-align:left; direction:ltr; color:#475569;">${coordsList}</div>`;
+
+              feature.set("Measurement_Type", "Area (UTM)");
+              feature.set("Measurement_Value", areaStr);
+            } else if (geometry instanceof ol.geom.Point) {
+              const coord = utmGeometry.getCoordinates();
+              output = `<strong>مختصات UTM:</strong><br><div style="font-size:11px; margin-top:5px; text-align:left; direction:ltr; color:#475569;">X: ${coord[0].toFixed(2)}<br>Y: ${coord[1].toFixed(2)}</div>`;
+
+              feature.set("Measurement_Type", "Coordinates (UTM)");
+              feature.set(
+                "Measurement_Value",
+                `X: ${coord[0].toFixed(2)}, Y: ${coord[1].toFixed(2)}`,
+              );
+            }
+
+            measureResultDiv.innerHTML = output;
+          });
+        } else {
+          measureResultDiv.innerHTML = "نتیجه اندازه‌گیری...";
+        }
+      }
+
+      const drawButtons = document.querySelectorAll(".draw-btn");
+      drawButtons.forEach((btn) => {
+        btn.addEventListener("click", function () {
+          // Remove active class from all, add to clicked
+          drawButtons.forEach((b) => b.classList.remove("active"));
+          this.classList.add("active");
+
+          // Update current type and reset interaction
+          currentDrawType = this.getAttribute("data-type");
+          if (drawInteraction) map.removeInteraction(drawInteraction);
+          addDrawInteraction();
+        });
+      });
+
+      document.getElementById("clear-drawings").onclick = function () {
+        drawingSource.clear();
+        measureResultDiv.innerHTML = "ترسیم‌ها پاک شدند.";
+      };
+
+      document.getElementById("export-geojson").onclick = function () {
+        const features = drawingSource.getFeatures();
+        if (features.length === 0) {
+          alert("هیچ ترسیمی بر روی نقشه جهت خروجی گرفتن یافت نشد!");
+          return;
+        }
+
+        const format = new ol.format.GeoJSON();
+        const geojsonString = format.writeFeatures(features, {
+          dataProjection: "EPSG:4326",
+          featureProjection: "EPSG:3857",
+        });
+
+        const dataUri =
+          "data:application/json;charset=utf-8," +
+          encodeURIComponent(geojsonString);
+        const downloadLink = document.createElement("a");
+        downloadLink.setAttribute("href", dataUri);
+        downloadLink.setAttribute("download", "gis_drawings_export.geojson");
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        downloadLink.remove();
+      };
+      // Cursor Coordinate Tracker
+      const cursorTooltip = document.getElementById("cursor-coordinate");
+
+      map.on("pointermove", function (evt) {
+        // Hide the tooltip if the user is clicking and dragging the map
+        if (evt.dragging) {
+          cursorTooltip.style.display = "none";
+          return;
+        }
+
+        // 1. Get the standard map coordinate (EPSG:3857)
+        const coordinate3857 = evt.coordinate;
+
+        // 2. Transform it to UTM Zone 40N (EPSG:32640)
+        const utmCoordinate = ol.proj.transform(
+          coordinate3857,
+          "EPSG:3857",
+          "EPSG:32640",
+        );
+
+        // 3. Format the numbers to 2 decimal places
+        const x = utmCoordinate[0].toFixed(2);
+        const y = utmCoordinate[1].toFixed(2);
+        cursorTooltip.innerHTML = `X: ${x} | Y: ${y}`;
+
+        // 4. Position the box near the cursor (Offset by 15px so it doesn't hide under the pointer)
+        cursorTooltip.style.left = evt.originalEvent.clientX + 15 + "px";
+        cursorTooltip.style.top = evt.originalEvent.clientY + 15 + "px";
+        cursorTooltip.style.display = "block";
+      });
+
+      // Hide the coordinate box when the mouse leaves the map area entirely
+      map.getViewport().addEventListener("mouseout", function () {
+        cursorTooltip.style.display = "none";
+      });
+    </script>
+  </body>
+</html>

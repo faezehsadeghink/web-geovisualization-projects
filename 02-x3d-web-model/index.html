@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>3D Web GIS Viewer — University of Tehran</title>
+
+    <script type="text/javascript" src="https://www.x3dom.org/download/x3dom.js"></script>
+    <link rel="stylesheet" type="text/css" href="https://www.x3dom.org/download/x3dom.css" />
+
+    <style>
+      :root {
+        --panel-bg: rgba(10, 14, 26, 0.88);
+        --accent:   #4f9eff;
+        --accent2:  #00c896;
+        --danger:   #ff5a5a;
+        --text:     #dce6f5;
+        --muted:    #6a7d9a;
+        --border:   rgba(79, 158, 255, 0.18);
+        --radius:   12px;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; background: #0a0e1a; color: var(--text); }
+
+      /* Loading */
+      #loader { position: fixed; inset: 0; background: #0a0e1a; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; transition: opacity 0.7s ease; }
+      #loader.hidden { opacity: 0; pointer-events: none; }
+      .loader-ring { width: 48px; height: 48px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.85s linear infinite; margin-bottom: 16px; }
+      #loader p { color: var(--muted); font-size: 13px; letter-spacing: 0.4px; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      /* Header */
+      #header { position: absolute; top: 0; left: 0; right: 0; height: 50px; background: var(--panel-bg); border-bottom: 1px solid var(--border); backdrop-filter: blur(14px); display: flex; align-items: center; padding: 0 20px; gap: 10px; z-index: 20; }
+      .header-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent2); box-shadow: 0 0 8px var(--accent2); animation: pulse 2.2s infinite; flex-shrink: 0; }
+      @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
+      #header h1 { font-size: 14px; font-weight: 600; color: var(--accent); letter-spacing: 0.5px; }
+      #header .subtitle { font-size: 11px; color: var(--muted); margin-left: 4px; }
+      .back-btn { margin-left: auto; display: flex; align-items: center; gap: 6px; padding: 5px 12px; background: rgba(79,158,255,0.08); border: 1px solid var(--border); border-radius: 6px; color: var(--muted); font-size: 12px; cursor: pointer; text-decoration: none; transition: all 0.2s; }
+      .back-btn:hover { color: var(--text); border-color: var(--accent); background: rgba(79,158,255,0.16); }
+
+      /* Control panel */
+      #controls { position: absolute; top: 66px; left: 16px; width: 210px; background: var(--panel-bg); border: 1px solid var(--border); border-radius: var(--radius); backdrop-filter: blur(14px); z-index: 10; overflow: hidden; }
+      .panel-section { padding: 13px 15px; border-bottom: 1px solid var(--border); }
+      .panel-section:last-child { border-bottom: none; }
+      .section-label { font-size: 10px; font-weight: 700; letter-spacing: 1.3px; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+      .view-btn { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 11px; margin-bottom: 6px; background: rgba(79,158,255,0.07); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 13px; cursor: pointer; text-align: left; transition: background 0.2s, border-color 0.2s, color 0.2s; }
+      .view-btn:last-child { margin-bottom: 0; }
+      .view-btn:hover { background: rgba(79,158,255,0.17); border-color: var(--accent); color: #fff; }
+      .view-btn svg { color: var(--accent); flex-shrink: 0; }
+      #coordText { font-family: "Courier New", monospace; font-size: 13px; color: var(--accent2); line-height: 1.75; }
+      #coordText.placeholder { color: var(--muted); font-family: inherit; font-size: 12px; }
+
+      /* Attribute panel */
+      #attrBox { position: absolute; top: 66px; right: 16px; width: 240px; background: var(--panel-bg); border: 1px solid var(--border); border-radius: var(--radius); backdrop-filter: blur(14px); z-index: 10; display: none; overflow: hidden; animation: slideIn 0.22s ease; }
+      @keyframes slideIn { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: translateX(0); } }
+      .attr-header { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+      .attr-header-title { font-size: 10px; font-weight: 700; letter-spacing: 1.3px; text-transform: uppercase; color: var(--accent); display: flex; align-items: center; gap: 6px; }
+      .close-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 15px; padding: 2px 5px; border-radius: 4px; transition: color 0.2s, background 0.2s; }
+      .close-btn:hover { color: var(--danger); background: rgba(255,90,90,0.1); }
+      .attr-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 16px; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 13px; }
+      .attr-row:last-child { border-bottom: none; }
+      .attr-key { color: var(--muted); font-size: 12px; }
+      .attr-val { color: var(--text); font-weight: 500; }
+
+      x3d { display: block; width: 100vw; height: 100vh; }
+    </style>
+  </head>
+  <body>
+
+    <div id="loader">
+      <div class="loader-ring"></div>
+      <p>Loading 3D model…</p>
+    </div>
+
+    <div id="header">
+      <div class="header-dot"></div>
+      <h1>3D Web GIS Viewer</h1>
+      <span class="subtitle">University of Tehran &nbsp;·&nbsp; Faculty of Surveying &amp; Geospatial Information</span>
+      <a class="back-btn" href="../index.html">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+        Home
+      </a>
+    </div>
+
+    <div id="controls">
+      <div class="panel-section">
+        <div class="section-label">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M15 10l-4 4l6 6l4-16l-16 4l6 6l4-4z"/></svg>
+          Camera Views
+        </div>
+        <button class="view-btn" onclick="setView('view_default')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 8 12 12 14 14"/></svg>
+          Default View
+        </button>
+        <button class="view-btn" onclick="setView('view_top')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+          Top-Down View
+        </button>
+        <button class="view-btn" onclick="setView('view_front')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          Front View
+        </button>
+      </div>
+
+      <div class="panel-section">
+        <div class="section-label">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+          Coordinates
+        </div>
+        <span id="coordText" class="placeholder">Click the model to get X, Y, Z</span>
+      </div>
+    </div>
+
+    <div id="attrBox">
+      <div class="attr-header">
+        <span class="attr-header-title">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+          <span id="attrTitle">Properties</span>
+        </span>
+        <button class="close-btn" onclick="closeAttributes()">✕</button>
+      </div>
+      <div id="attrRows"></div>
+    </div>
+
+    <x3d>
+      <scene>
+        <viewpoint id="view_default" position="1.037 0.617 -0.066" orientation="-0.145 0.977 0.157 1.672" centerOfRotation="0.082 0.301 0.009" description="Default View"></viewpoint>
+        <viewpoint id="view_top"     position="0.082 1.5 0.009"    orientation="1 0 0 -1.5708"             centerOfRotation="0.082 0.301 0.009" description="Top Down"></viewpoint>
+        <viewpoint id="view_front"   position="0.082 0.45 1.8"                                              centerOfRotation="0.082 0.301 0.009" description="Front View"></viewpoint>
+
+        <transform onmousedown="handleSceneClick(event)">
+          <inline url="models/3model.x3d"></inline>
+        </transform>
+      </scene>
+    </x3d>
+
+    <script>
+      function hideLoader() {
+        document.getElementById('loader').classList.add('hidden');
+        document.getElementById('view_default').setAttribute('set_bind', 'true');
+      }
+      setTimeout(hideLoader, 8000);
+
+      function setView(id) { document.getElementById(id).setAttribute('set_bind', 'true'); }
+
+      function showPanel(title, attrs) {
+        document.getElementById('attrTitle').textContent = title;
+        document.getElementById('attrRows').innerHTML = attrs
+          .map(a => `<div class="attr-row"><span class="attr-key">${a.key}</span><span class="attr-val">${a.val}</span></div>`)
+          .join('');
+        document.getElementById('attrBox').style.display = 'block';
+      }
+
+      function showTowerDetails(event) {
+        event.stopPropagation();
+        showPanel('GIS Tower', [
+          { key: 'Type',     val: 'Mixed-use Skyscraper'  },
+          { key: 'Height',   val: '~320 m (est.)'         },
+          { key: 'Floors',   val: '68'                    },
+          { key: 'Base',     val: 'Concrete platform'     },
+          { key: 'Facade',   val: 'Glass curtain wall'    },
+          { key: 'Top',      val: 'Obs. deck + spire'     },
+          { key: 'Status',   val: 'Under Construction'    },
+          { key: 'Designer', val: 'Faculty of Surveying'  },
+        ]);
+      }
+
+      function closeAttributes() { document.getElementById('attrBox').style.display = 'none'; }
+
+      function handleSceneClick(event) {
+        if (!event.hitPnt) return;
+        const [x, y, z] = event.hitPnt;
+        const el = document.getElementById('coordText');
+        el.classList.remove('placeholder');
+        el.innerHTML = `X &nbsp;${x.toFixed(4)}<br>Y &nbsp;${y.toFixed(4)}<br>Z &nbsp;${z.toFixed(4)}`;
+      }
+    </script>
+  </body>
+</html>

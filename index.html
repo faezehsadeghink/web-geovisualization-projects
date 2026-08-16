@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Web geovisualization portfolio by Faezeh Sadeghi Niestanak">
+  <title>Web Geovisualization Projects</title>
+  <style>
+    :root{color-scheme:light dark;--bg:#fff;--surface:#f9f8f7;--text:#2c2c2b;--muted:#6f6c67;--border:#e6e5e3;--accent:#2783de;--soft:#e5f2fc}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.55 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    main{width:min(1080px,calc(100% - 40px));margin:auto;padding:64px 0}.eyebrow{color:var(--accent);font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-size:.78rem}
+    h1{max-width:760px;font-size:clamp(2.25rem,7vw,4.75rem);line-height:1.02;letter-spacing:-.045em;margin:14px 0 20px}header p{max-width:680px;color:var(--muted);font-size:1.12rem}
+    .progress{margin:40px 0 48px;padding:18px 20px;border:1px solid var(--border);border-radius:12px;background:var(--surface);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.card{display:flex;min-height:250px;flex-direction:column;padding:24px;border:1px solid var(--border);border-radius:12px;color:inherit;text-decoration:none;background:var(--surface);transition:transform .2s,border-color .2s}
+    .card:hover,.card:focus-visible{transform:translateY(-3px);border-color:var(--accent);outline:none}.num{font:700 .78rem ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--accent)}h2{font-size:1.45rem;line-height:1.2;margin:28px 0 10px}.card p{margin:0;color:var(--muted)}.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:auto;padding-top:24px}.tag{padding:5px 9px;border-radius:999px;background:var(--soft);color:#185b96;font-size:.78rem;font-weight:650}
+    footer{margin-top:56px;padding-top:24px;border-top:1px solid var(--border);color:var(--muted)}footer strong{color:var(--text)}
+    @media(max-width:720px){main{width:min(100% - 32px,1080px);padding:40px 0}.grid{grid-template-columns:1fr}.card{min-height:220px}}
+    @media(prefers-reduced-motion:reduce){.card{transition:none}}
+    @media(prefers-color-scheme:dark){:root{--bg:#191919;--surface:#202020;--text:#fff;--muted:rgba(255,255,255,.65);--border:rgba(255,255,255,.2);--accent:#5e9fe8;--soft:rgba(94,159,232,.12)}.tag{color:#9bc9f7}}
+  </style>
+</head>
+<body><main>
+  <header><div class="eyebrow">Geospatial research portfolio</div><h1>From spatial layers to augmented reality.</h1><p>Four connected experiments in browser-based geovisualization, developed through 2D Web GIS, X3D, Cesium 3D Tiles, and location-based WebAR.</p></header>
+  <div class="progress" aria-label="Learning progression">2D maps → browser 3D → georeferenced 3D Tiles → WebAR</div>
+  <section class="grid" aria-label="Projects">
+    <a class="card" href="01-2d-web-map/"><span class="num">01</span><h2>2D Web Map</h2><p>WMS layers, multiple basemaps, feature queries, and interactive drawing.</p><div class="tags"><span class="tag">OpenLayers</span><span class="tag">GeoServer</span><span class="tag">WMS</span></div></a>
+    <a class="card" href="02-x3d-web-model/"><span class="num">02</span><h2>X3D Web Model</h2><p>An external X3D model with camera presets and coordinate inspection.</p><div class="tags"><span class="tag">X3D</span><span class="tag">X3DOM</span><span class="tag">JavaScript</span></div></a>
+    <a class="card" href="03-cesium-citygml-viewer/"><span class="num">03</span><h2>CityGML in Cesium</h2><p>FME-based CityGML conversion and an interactive OGC 3D Tiles viewer.</p><div class="tags"><span class="tag">FME</span><span class="tag">3D Tiles</span><span class="tag">CesiumJS</span></div></a>
+    <a class="card" href="04-location-based-webar/"><span class="num">04</span><h2>Location-Based WebAR</h2><p>GPS-anchored markers with live distance and compass guidance.</p><div class="tags"><span class="tag">Leaflet</span><span class="tag">A-Frame</span><span class="tag">AR.js</span></div></a>
+  </section>
+  <footer><strong>Faezeh Sadeghi Niestanak</strong><br>Geospatial Researcher · M.Sc. Student in Remote Sensing, University of Tehran</footer>
+</main></body></html>

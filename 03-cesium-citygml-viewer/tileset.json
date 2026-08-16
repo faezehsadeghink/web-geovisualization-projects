@@ -1,0 +1,118 @@
+{
+	"asset" : {
+		"version" : "1.0"
+	},
+	"properties" : {
+		"gml_id" : {},
+		"gml_parent_id" : {},
+		"citygml_target_uri" : {},
+		"citygml_feature_role" : {},
+		"citygml_feature_role_attr_name" : {},
+		"citygml_feature_role_attr_val" : {},
+		"gml_description" : {},
+		"gml_name" : {},
+		"citygml_address" : {},
+		"citygml_creationDate" : {},
+		"citygml_terminationDate" : {},
+		"externalReference{}.externalObject.name" : {},
+		"externalReference{}.externalObject.uri" : {},
+		"externalReference{}.informationSystem" : {},
+		"citygml_generalizes_to{}.xlink_href" : {},
+		"citygml_relative_to_terrain" : {},
+		"citygml_relative_to_water" : {},
+		"citygml_appearance{}.xlink_href" : {},
+		"citygml_class" : {},
+		"citygml_class_codeSpace" : {},
+		"citygml_function{}" : {},
+		"citygml_function{}.codeSpace" : {},
+		"citygml_usage{}" : {},
+		"citygml_usage{}.codeSpace" : {},
+		"citygml_year_of_construction" : {},
+		"citygml_year_of_demolition" : {},
+		"citygml_roof_type" : {},
+		"citygml_roof_type_codeSpace" : {},
+		"citygml_measured_height" : {},
+		"citygml_measured_height_units" : {},
+		"citygml_storeys_above_ground" : {},
+		"citygml_storeys_below_ground" : {},
+		"citygml_storey_heights_above_ground" : {},
+		"citygml_storey_heights_above_ground_units" : {},
+		"citygml_storey_heights_below_ground" : {},
+		"citygml_storey_heights_below_ground_units" : {},
+		"citygml_outer_building_installation{}.xlink_href" : {},
+		"citygml_interior_building_installation{}.xlink_href" : {},
+		"citygml_bounded_by{}.xlink_href" : {},
+		"citygml_level_of_detail{}" : {},
+		"citygml_interior_room{}.xlink_href" : {},
+		"citygml_consists_of_building_part{}.xlink_href" : {},
+		"citygml_address{}.xlink_href" : {},
+		"ANZ_LOC" : {},
+		"DENKMALART" : {},
+		"DENK_ID" : {},
+		"EIG_KL_PV" : {},
+		"EIG_KL_ST" : {},
+		"FOLIE" : {},
+		"GMDE" : {},
+		"HNR" : {},
+		"H_First_Max" : {},
+		"H_First_Min" : {},
+		"H_Trauf_Max" : {},
+		"H_Trauf_Min" : {},
+		"KREIS" : {},
+		"Kachel" : {},
+		"LAND" : {},
+		"LFD" : {},
+		"OAR" : {},
+		"RBEZ" : {},
+		"STR" : {},
+		"TexVersion" : {},
+		"citygml_city_object_member{}.xlink_href" : {},
+		"citygml_appearance_member{}.xlink_href" : {},
+		"gml_feature_member{}.xlink_href" : {},
+		"citygml_opening{}.xlink_href" : {}
+	},
+	"geometricError" : 78.04999999888241,
+	"root" : {
+		"boundingVolume" : {
+			"region" : [ 0.23358147723543965, 0.9169544191416187, 0.23359517189533052, 0.9169642333491669, 36.74993403162807, 118.74993403069675 ]
+		},
+		"geometricError" : 78.04999999888241,
+		"refine" : "REPLACE",
+		"content" : {
+			"boundingVolume" : {
+				"region" : [ 0.23358147723543965, 0.9169544191416187, 0.23359517189533052, 0.9169642333491669, 36.74993403162807, 118.74993403069675 ]
+			},
+			"uri" : "data/data2.b3dm"
+		},
+		"children" : [
+			{
+				"boundingVolume" : {
+					"region" : [ 0.23358147723543965, 0.9169544191416187, 0.23359517189533052, 0.9169642333491669, 36.74993403162807, 118.74993403069675 ]
+				},
+				"geometricError" : 0,
+				"refine" : "REPLACE",
+				"content" : {
+					"boundingVolume" : {
+						"region" : [ 0.23358147723543965, 0.9169544191416187, 0.23359517189533052, 0.9169642333491669, 36.74993403162807, 118.74993403069675 ]
+					},
+					"uri" : "data/data0.b3dm"
+				},
+				"children" : []
+			},
+			{
+				"boundingVolume" : {
+					"region" : [ 0.23358147723543965, 0.9169544191416187, 0.23359517186215853, 0.9169642333176633, 36.74993403162807, 45.74993403069675 ]
+				},
+				"geometricError" : 0,
+				"refine" : "REPLACE",
+				"content" : {
+					"boundingVolume" : {
+						"region" : [ 0.23358147723543965, 0.9169544191416187, 0.23359517186215853, 0.9169642333176633, 36.74993403162807, 45.74993403069675 ]
+					},
+					"uri" : "data/data1.b3dm"
+				},
+				"children" : []
+			}
+		]
+	}
+}

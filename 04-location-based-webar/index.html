@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0d1b2a">
+<title>واقعیت افزوده مکان‌محور</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- A-Frame + AR.js (بیلد ۳.۴.۵ شامل gps-camera و gps-entity-place است) -->
+<script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
+<!-- اصلاح ۱: look-at جزء AR.js نیست و باید جداگانه لود شود -->
+<script src="https://unpkg.com/aframe-look-at-component@1.0.0/dist/aframe-look-at-component.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
+
+<style>
+:root{
+  --ink:#0d1b2a; --ink-2:#152a3f; --paper:#f2efe6;
+  --near:#7fd1a7; --warn:#e5a663;
+  --safe-t:env(safe-area-inset-top,0px);
+  --safe-b:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--ink);
+  font-family:"Vazirmatn",Tahoma,system-ui,sans-serif;
+  -webkit-text-size-adjust:100%}
+
+/* ================= صفحه انتخاب مقصد ================= */
+#setup{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;
+  height:100vh;height:100dvh;background:var(--ink);color:var(--paper)}
+
+#mapWrap{position:relative;flex:1;min-height:0}
+#map{position:absolute;inset:0;background:#243447}
+.leaflet-control-attribution{font-size:9px !important;opacity:.6}
+.leaflet-control-zoom{display:none}
+
+/* سوزن ثابت وسط نقشه */
+#pin{position:absolute;top:50%;left:50%;z-index:500;
+  transform:translate(-50%,-100%);pointer-events:none;filter:drop-shadow(0 3px 5px rgba(0,0,0,.45))}
+#pin svg{display:block;width:34px;height:46px}
+#pinDot{position:absolute;top:50%;left:50%;z-index:499;width:7px;height:7px;
+  margin:-3.5px 0 0 -3.5px;border-radius:50%;background:var(--near);
+  box-shadow:0 0 0 2px rgba(13,27,42,.5);pointer-events:none}
+
+/* نوار بالای نقشه */
+#topbar{position:absolute;z-index:501;top:calc(var(--safe-t) + 10px);inset-inline:10px;
+  display:flex;gap:8px;align-items:center}
+#coords{flex:1;background:rgba(13,27,42,.88);border-radius:8px;padding:9px 12px;
+  font-size:12px;letter-spacing:.02em;direction:ltr;text-align:center;
+  font-variant-numeric:tabular-nums}
+#locBtn{flex:0 0 auto;width:44px;height:44px;border-radius:8px;border:0;
+  background:rgba(13,27,42,.88);color:var(--near);font-size:20px;line-height:1}
+
+/* چیپ‌های دانشکده */
+#chips{position:absolute;z-index:501;bottom:10px;inset-inline:0;
+  display:flex;gap:8px;overflow-x:auto;padding:0 10px;
+  scrollbar-width:none;-webkit-overflow-scrolling:touch}
+#chips::-webkit-scrollbar{display:none}
+.chip{flex:0 0 auto;background:rgba(13,27,42,.88);color:var(--paper);
+  border:1px solid rgba(242,239,230,.18);border-radius:20px;
+  padding:9px 15px;font-size:13px;font-family:inherit;white-space:nowrap}
+
+/* شیت پایین */
+#sheet{flex:0 0 auto;background:var(--ink);border-top:1px solid rgba(242,239,230,.12);
+  padding:16px 16px calc(16px + var(--safe-b));max-height:52dvh;overflow-y:auto}
+#sheet h2{margin:0 0 12px;font-size:14px;font-weight:400;opacity:.6}
+label{display:block;font-size:12px;margin-bottom:6px;opacity:.75}
+input[type=text]{width:100%;padding:14px 12px;border-radius:8px;font-size:16px;
+  border:1px solid rgba(242,239,230,.22);background:rgba(255,255,255,.05);
+  color:var(--paper);font-family:inherit}
+input:focus{outline:2px solid var(--near);outline-offset:1px}
+
+.seg{display:flex;gap:8px;margin-top:6px}
+.seg button{flex:1;padding:12px 0;border-radius:8px;font-size:14px;font-family:inherit;
+  border:1px solid rgba(242,239,230,.22);background:transparent;color:var(--paper);opacity:.6}
+.seg button[aria-pressed=true]{background:rgba(127,209,167,.16);
+  border-color:var(--near);color:var(--near);opacity:1;font-weight:700}
+
+#startBtn{width:100%;margin-top:16px;padding:16px;border:0;border-radius:8px;
+  background:var(--paper);color:var(--ink);font-size:16px;font-weight:700;font-family:inherit}
+#shareBtn{width:100%;margin-top:8px;padding:12px;border-radius:8px;
+  border:1px solid rgba(242,239,230,.22);background:transparent;color:var(--paper);
+  font-size:13px;font-family:inherit;opacity:.65}
+#msg{font-size:12px;line-height:1.8;margin:10px 0 0;color:var(--warn);min-height:1.1em}
+.field{margin-bottom:14px}
+
+/* ================= صحنه AR ================= */
+#arRoot{position:fixed;inset:0;z-index:1}
+#hud{position:fixed;z-index:20;inset:auto 0 0 0;display:none;gap:14px;align-items:center;
+  padding:16px 16px calc(16px + var(--safe-b));color:var(--paper);
+  background:linear-gradient(to top,rgba(13,27,42,.94) 55%,rgba(13,27,42,0))}
+#hud.on{display:flex}
+#compass{flex:0 0 auto;width:64px;height:64px}
+#compass svg{width:100%;height:100%;display:block}
+#needle{transform-origin:50% 50%;transition:transform .25s ease-out}
+#readout{flex:1;min-width:0}
+#placeName{font-size:17px;font-weight:700;margin:0 0 3px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#distance{font-size:15px;margin:0;font-variant-numeric:tabular-nums}
+#status{font-size:11px;line-height:1.6;opacity:.6;margin:5px 0 0}
+.arrived #distance{color:var(--near);font-weight:700}
+#back{position:fixed;z-index:22;top:calc(var(--safe-t) + 10px);inset-inline-start:12px;
+  display:none;background:rgba(13,27,42,.8);color:var(--paper);border:0;border-radius:8px;
+  padding:11px 15px;font-size:13px;font-family:inherit}
+#back.on{display:block}
+
+@media (prefers-reduced-motion:reduce){#needle{transition:none}}
+@media (min-height:800px){#sheet{max-height:44dvh}}
+</style>
+</head>
+<body>
+
+<div id="arRoot"></div>
+
+<div id="setup">
+  <div id="mapWrap">
+    <div id="map"></div>
+    <div id="pinDot"></div>
+    <div id="pin">
+      <svg viewBox="0 0 34 46" xmlns="http://www.w3.org/2000/svg">
+        <path d="M17 46C17 46 32 27.5 32 16A15 15 0 1 0 2 16c0 11.5 15 30 15 30z" fill="#7FD1A7"/>
+        <circle cx="17" cy="16" r="5.5" fill="#0d1b2a"/>
+      </svg>
+    </div>
+
+    <div id="topbar">
+      <div id="coords">—</div>
+      <button id="locBtn" type="button" aria-label="رفتن به موقعیت من">◎</button>
+    </div>
+
+    <!-- اصلاح ۳: مختصات واقعی ساختمان‌های پردیس فنی (کارگر شمالی) -->
+    <div id="chips">
+      <button class="chip" data-c="35.724593,51.387785">برق و کامپیوتر</button>
+      <button class="chip" data-c="35.725498,51.386238">مکانیک</button>
+      <button class="chip" data-c="35.724609,51.385004">متالورژی و مواد</button>
+      <button class="chip" data-c="35.724194,51.388556">ساختمان مرکزی</button>
+      <button class="chip" data-c="35.724612,51.388316">نقشه‌برداری</button>
+    </div>
+  </div>
+
+  <div id="sheet">
+    <h2>نقشه را جابه‌جا کنید تا سوزن روی مقصد بنشیند</h2>
+
+    <div class="field">
+      <label for="pname">نام مکان</label>
+      <input id="pname" type="text" placeholder="مثلاً دانشکده مهندسی برق">
+    </div>
+
+    <div class="field">
+      <label>شعاع فعال‌سازی</label>
+      <div class="seg" id="radSeg">
+        <button type="button" data-r="15">۱۵ متر</button>
+        <button type="button" data-r="30" aria-pressed="true">۳۰ متر</button>
+        <button type="button" data-r="50">۵۰ متر</button>
+        <button type="button" data-r="100">۱۰۰ متر</button>
+      </div>
+    </div>
+
+    <button id="startBtn" type="button">شروع دوربین</button>
+    <button id="shareBtn" type="button">کپی لینک این مقصد</button>
+    <p id="msg"></p>
+  </div>
+</div>
+
+<button id="back" type="button">تغییر مقصد</button>
+
+<div id="hud">
+  <div id="compass">
+    <svg viewBox="0 0 100 100" aria-hidden="true">
+      <circle cx="50" cy="50" r="46" fill="none" stroke="rgba(242,239,230,.3)" stroke-width="2"/>
+      <text x="50" y="15" text-anchor="middle" font-size="13" fill="rgba(242,239,230,.5)">N</text>
+      <g id="needle"><path d="M50 20 L65 64 L50 55 L35 64 Z" fill="#7FD1A7"/></g>
+    </svg>
+  </div>
+  <div id="readout">
+    <p id="placeName"></p>
+    <p id="distance">در حال دریافت موقعیت…</p>
+    <p id="status"></p>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+var $=function(id){return document.getElementById(id)};
+var setup=$("setup"),hud=$("hud"),back=$("back"),msg=$("msg"),needle=$("needle"),
+    elName=$("placeName"),elDist=$("distance"),elStatus=$("status"),arRoot=$("arRoot");
+
+var TARGET=null,RADIUS=30,heading=0,userPos=null,watchId=null,
+    scene=null,camEnt=null,poiEnt=null,labelEnt=null,gpsFallbackTimer=null;
+
+/* ---------------- نقشه ---------------- */
+var q=new URLSearchParams(location.search);
+var startLat=parseFloat(q.get("lat")), startLon=parseFloat(q.get("lon"));
+if(isNaN(startLat)||isNaN(startLon)){ startLat=35.724194; startLon=51.388556; }
+if(q.get("name")) $("pname").value=q.get("name");
+
+var map=L.map("map",{zoomControl:false,attributionControl:true})
+        .setView([startLat,startLon],18);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
+  maxZoom:20, attribution:"© OpenStreetMap"
+}).addTo(map);
+
+var ring=L.circle([startLat,startLon],{radius:RADIUS,color:"#7FD1A7",weight:1.5,
+  fillColor:"#7FD1A7",fillOpacity:.12}).addTo(map);
+
+function updateCoords(){
+  var c=map.getCenter();
+  $("coords").textContent=c.lat.toFixed(6)+", "+c.lng.toFixed(6);
+  ring.setLatLng(c);
+}
+map.on("move",updateCoords);
+updateCoords();
+setTimeout(function(){map.invalidateSize()},250);
+window.addEventListener("resize",function(){map.invalidateSize()});
+
+/* هشدار HTTPS: دوربین و GPS جز روی localhost نیاز به https دارند */
+var host=location.hostname;
+if(location.protocol!=="https:" && host!=="localhost" && host!=="127.0.0.1"){
+  msg.textContent="این صفحه روی http باز شده. دوربین و GPS فقط با https (یا localhost) کار می‌کنند.";
+}
+
+/* چیپ‌های میان‌بر */
+Array.prototype.forEach.call(document.querySelectorAll(".chip"),function(b){
+  b.addEventListener("click",function(){
+    var c=this.dataset.c.split(",");
+    map.setView([parseFloat(c[0]),parseFloat(c[1])],18);
+    if(!$("pname").value.trim()) $("pname").value="دانشکده "+this.textContent.trim();
+    msg.textContent="";
+  });
+});
+
+/* رفتن به موقعیت کاربر */
+$("locBtn").addEventListener("click",function(){
+  msg.textContent="در حال گرفتن موقعیت…";
+  navigator.geolocation.getCurrentPosition(function(p){
+    map.setView([p.coords.latitude,p.coords.longitude],19);
+    msg.textContent="موقعیت شما با دقت ±"+Math.round(p.coords.accuracy)+" متر پیدا شد.";
+  },function(){
+    msg.textContent="موقعیت گرفته نشد. GPS و مجوز مرورگر را بررسی کنید.";
+  },{enableHighAccuracy:true,timeout:15000});
+});
+
+/* شعاع */
+$("radSeg").addEventListener("click",function(e){
+  var b=e.target.closest("button"); if(!b) return;
+  Array.prototype.forEach.call(this.querySelectorAll("button"),function(x){
+    x.setAttribute("aria-pressed", x===b ? "true":"false");
+  });
+  RADIUS=parseInt(b.dataset.r,10);
+  ring.setRadius(RADIUS);
+});
+
+/* ---------------- محاسبات ---------------- */
+function distanceMeters(a,b,c,d){
+  var R=6371000,r=Math.PI/180,dLat=(c-a)*r,dLon=(d-b)*r;
+  var h=Math.sin(dLat/2)*Math.sin(dLat/2)+
+        Math.cos(a*r)*Math.cos(c*r)*Math.sin(dLon/2)*Math.sin(dLon/2);
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+function bearingDeg(a,b,c,d){
+  var r=Math.PI/180;
+  var y=Math.sin((d-b)*r)*Math.cos(c*r);
+  var x=Math.cos(a*r)*Math.sin(c*r)-Math.sin(a*r)*Math.cos(c*r)*Math.cos((d-b)*r);
+  return (Math.atan2(y,x)/r+360)%360;
+}
+function fmt(m){return m>=1000?(m/1000).toFixed(2)+" کیلومتر":Math.round(m)+" متر"}
+
+/* اصلاح ۲: a-text نمی‌تواند فارسی را رندر کند (فونت MSDF گلیف عربی ندارد و
+   حروف هم به هم نمی‌چسبند). متن را روی canvas می‌کشیم و به‌عنوان تکسچر می‌دهیم. */
+function labelTexture(text){
+  var pad=48, h=180, fs=84;
+  var probe=document.createElement("canvas").getContext("2d");
+  probe.font="700 "+fs+"px Vazirmatn, Tahoma, sans-serif";
+  var w=Math.ceil(probe.measureText(text).width)+pad*2;
+  if(w<320) w=320;
+
+  var c=document.createElement("canvas");
+  c.width=w; c.height=h;
+  var ctx=c.getContext("2d");
+
+  ctx.fillStyle="rgba(13,27,42,.86)";
+  var r=28;
+  ctx.beginPath();
+  ctx.moveTo(r,0); ctx.lineTo(w-r,0); ctx.quadraticCurveTo(w,0,w,r);
+  ctx.lineTo(w,h-r); ctx.quadraticCurveTo(w,h,w-r,h);
+  ctx.lineTo(r,h); ctx.quadraticCurveTo(0,h,0,h-r);
+  ctx.lineTo(0,r); ctx.quadraticCurveTo(0,0,r,0);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle="#7FD1A7"; ctx.lineWidth=5; ctx.stroke();
+
+  ctx.font="700 "+fs+"px Vazirmatn, Tahoma, sans-serif";
+  ctx.direction="rtl";
+  ctx.textAlign="center";
+  ctx.textBaseline="middle";
+  ctx.fillStyle="#F2EFE6";
+  ctx.fillText(text,w/2,h/2+4);
+
+  return {url:c.toDataURL("image/png"), aspect:w/h};
+}
+
+/* ---------------- به‌روزرسانی نمایش ---------------- */
+function render(){
+  if(!userPos||!TARGET) return;
+  var d=distanceMeters(userPos.lat,userPos.lon,TARGET.lat,TARGET.lon);
+  var b=bearingDeg(userPos.lat,userPos.lon,TARGET.lat,TARGET.lon);
+  needle.style.transform="rotate("+(b-heading)+"deg)";
+
+  var arrived=d<=RADIUS;
+  hud.classList.toggle("arrived",arrived);
+  elDist.textContent=arrived?"رسیدید — "+fmt(d):fmt(d);
+
+  if(labelEnt) labelEnt.setAttribute("visible",arrived);
+}
+
+function onOrientation(e){
+  if(typeof e.webkitCompassHeading==="number") heading=e.webkitCompassHeading;
+  else if(e.absolute&&typeof e.alpha==="number") heading=(360-e.alpha)%360;
+  render();
+}
+
+function setPos(lat,lon,acc){
+  userPos={lat:lat,lon:lon};
+  if(typeof acc==="number") elStatus.textContent="دقت موقعیت: ±"+Math.round(acc)+" متر";
+  render();
+}
+
+/* اصلاح ۶: موقعیت را از خود gps-camera می‌گیریم تا HUD و صحنه هم‌گام باشند.
+   اگر تا ۱۰ ثانیه رویدادی نیامد، watchPosition مستقل را روشن می‌کنیم. */
+function onCameraPosition(e){
+  var p=(e.detail&&e.detail.position)||{};
+  if(typeof p.latitude!=="number") return;
+  if(gpsFallbackTimer){ clearTimeout(gpsFallbackTimer); gpsFallbackTimer=null; }
+  stopWatch();
+  setPos(p.latitude,p.longitude,p.accuracy);
+}
+
+function startWatch(){
+  if(!("geolocation" in navigator)){elDist.textContent="مرورگر از GPS پشتیبانی نمی‌کند";return;}
+  if(watchId!==null) return;
+  watchId=navigator.geolocation.watchPosition(function(p){
+    setPos(p.coords.latitude,p.coords.longitude,p.coords.accuracy);
+  },function(e){
+    elDist.textContent="موقعیت در دسترس نیست";
+    elStatus.textContent=e.code===1
+      ?"دسترسی به موقعیت رد شد. از تنظیمات مرورگر اجازه دهید."
+      :"GPS را روشن کنید و زیر آسمان باز بایستید.";
+  },{enableHighAccuracy:true,maximumAge:0,timeout:20000});
+}
+function stopWatch(){
+  if(watchId!==null){ navigator.geolocation.clearWatch(watchId); watchId=null; }
+}
+
+/* ---------------- ساخت صحنه AR ---------------- */
+function buildScene(){
+  var tex=labelTexture(TARGET.name);
+
+  scene=document.createElement("a-scene");
+  scene.setAttribute("vr-mode-ui","enabled: false");
+  scene.setAttribute("embedded","");
+  scene.setAttribute("renderer","antialias: true; alpha: true");
+  scene.setAttribute("arjs","sourceType: webcam; videoTexture: true; debugUIEnabled: false");
+
+  camEnt=document.createElement("a-camera");
+  camEnt.setAttribute("gps-camera","minDistance: 1; maxDistance: 3000");
+  scene.appendChild(camEnt);
+
+  /* پروژه عمومی: یک شیء سه‌بعدی روی مختصات GPS مقصد */
+  poiEnt=document.createElement("a-entity");
+  poiEnt.setAttribute("gps-entity-place",
+    "latitude: "+TARGET.lat+"; longitude: "+TARGET.lon);
+
+  var box=document.createElement("a-box");
+  box.setAttribute("scale","4 4 4");
+  box.setAttribute("position","0 2 0");
+  box.setAttribute("material","color: #7FD1A7; opacity: 0.85");
+  poiEnt.appendChild(box);
+
+  /* پروژه اختصاصی: نام دانشکده، بالای مکعب، همیشه رو به دوربین */
+  labelEnt=document.createElement("a-plane");
+  labelEnt.setAttribute("visible",false);
+  labelEnt.setAttribute("position","0 10 0");
+  labelEnt.setAttribute("height","4");
+  labelEnt.setAttribute("width",(4*tex.aspect).toFixed(2));
+  labelEnt.setAttribute("material",
+    "shader: flat; transparent: true; side: double; src: url("+tex.url+")");
+  labelEnt.setAttribute("look-at","[gps-camera]");
+  poiEnt.appendChild(labelEnt);
+
+  scene.appendChild(poiEnt);
+  arRoot.appendChild(scene);
+
+  camEnt.addEventListener("gps-camera-update-position",onCameraPosition);
+  gpsFallbackTimer=setTimeout(startWatch,10000);
+}
+
+function destroyScene(){
+  if(gpsFallbackTimer){ clearTimeout(gpsFallbackTimer); gpsFallbackTimer=null; }
+  stopWatch();
+  if(camEnt) camEnt.removeEventListener("gps-camera-update-position",onCameraPosition);
+
+  /* اصلاح ۹: دوربین را واقعاً خاموش کن */
+  Array.prototype.forEach.call(document.querySelectorAll("video"),function(v){
+    var s=v.srcObject;
+    if(s&&s.getTracks) s.getTracks().forEach(function(t){t.stop()});
+    v.srcObject=null;
+    if(v.parentNode) v.parentNode.removeChild(v);
+  });
+
+  if(scene&&scene.parentNode) scene.parentNode.removeChild(scene);
+  scene=camEnt=poiEnt=labelEnt=null;
+  userPos=null;
+}
+
+/* ---------------- شروع ---------------- */
+$("startBtn").addEventListener("click",async function(){
+  var name=$("pname").value.trim();
+  if(!name){ msg.textContent="نام مکان را وارد کنید."; return; }
+  var c=map.getCenter();
+  TARGET={name:name,lat:+c.lat.toFixed(6),lon:+c.lng.toFixed(6)};
+  elName.textContent=name;
+  elDist.textContent="در حال دریافت موقعیت…";
+  elStatus.textContent="";
+  msg.textContent="";
+
+  if(typeof DeviceOrientationEvent!=="undefined" &&
+     typeof DeviceOrientationEvent.requestPermission==="function"){
+    try{ await DeviceOrientationEvent.requestPermission(); }catch(e){}
+  }
+  window.addEventListener("deviceorientationabsolute",onOrientation,true);
+  window.addEventListener("deviceorientation",onOrientation,true);
+
+  buildScene();
+  setup.style.display="none";
+  hud.classList.add("on");
+  back.classList.add("on");
+});
+
+back.addEventListener("click",function(){
+  window.removeEventListener("deviceorientationabsolute",onOrientation,true);
+  window.removeEventListener("deviceorientation",onOrientation,true);
+  destroyScene();
+  setup.style.display="flex";
+  hud.classList.remove("on");
+  back.classList.remove("on");
+  setTimeout(function(){map.invalidateSize()},100);
+});
+
+$("shareBtn").addEventListener("click",function(){
+  var c=map.getCenter(), name=$("pname").value.trim()||"مقصد";
+  var url=location.origin+location.pathname+"?name="+encodeURIComponent(name)+
+          "&lat="+c.lat.toFixed(6)+"&lon="+c.lng.toFixed(6)+"&r="+RADIUS;
+  if(navigator.clipboard) navigator.clipboard.writeText(url);
+  msg.textContent="لینک کپی شد.";
+});
+
+if(q.get("r")){
+  var r=parseInt(q.get("r"),10);
+  var btn=document.querySelector('#radSeg button[data-r="'+r+'"]');
+  if(btn) btn.click();
+}
+})();
+</script>
+</body>
+</html>
